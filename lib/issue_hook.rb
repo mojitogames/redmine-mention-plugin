@@ -1,14 +1,20 @@
+require_dependency 'issue'
+require_dependency 'watcher'
+
 module Mention
-  module Hooks
-    class ViewLayoutsBaseHtmlHeadHook < Redmine::Hook::ViewListener
-      def view_layouts_base_html_head(context={})
-        if context[:controller] && (context[:controller].is_a?(IssuesController))
-          tags = javascript_include_tag('jquery.caretposition.js', :plugin => 'redmine_mention_plugin')
-          tags << javascript_include_tag('jquery.sew.js', :plugin => 'redmine_mention_plugin')
-          tags << javascript_include_tag('redmine_mention_plugin.js', :plugin => 'redmine_mention_plugin')
-          tags << stylesheet_link_tag('redmine_mention_plugin.css', :plugin => 'redmine_mention_plugin')
+  module IssueHook
+    def self.included(base)
+      base.send(:after_create) do |issue|
+        mentioned_users = issue.description.scan(/@[\w.]+/)
+        mentioned_users.each do |mentioned_user|
+          username = mentioned_user[1..-1] # Remove the heading ':'
+          if user = User.find_by_login(username)
+            Watcher.create(:watchable => issue, :user => user)
+          end
         end
       end
     end
   end
 end
+
+Issue.send(:include, Mention::IssueHook) unless Issue.included_modules.include? Mention::IssueHook
